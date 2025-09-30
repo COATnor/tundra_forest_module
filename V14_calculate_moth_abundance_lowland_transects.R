@@ -79,9 +79,9 @@ myfile <- rbind(dataset1, dataset2)
 years <- sort(unique(myfile$t_year))
 
 ## list to store file paths
-summary_file_paths <- list()
+state_variable_file_paths <- list()
 
-## loop over each year and generate summary tables
+## loop over each year and generate state variable tables
 for (yr in years) {
   
   ## filter for current year
@@ -104,7 +104,7 @@ for (yr in years) {
   write.table(state_var_year, file_path, row.names = FALSE, sep = ";")
   
   ## store the file path for later uploading
-  summary_file_paths[[as.character(yr)]] <- file_path
+  state_variable_file_paths[[as.character(yr)]] <- file_path
 }
 
 
@@ -189,12 +189,12 @@ filenames_state <-  pkg_state$resources %>% sapply('[[','name')  # get the file 
 filenames_state   # are there any files? "list()" if not
 
 ## upload state variable files for each year
-for (yr in names(summary_file_paths)) {
+for (yr in names(state_variable_file_paths)) {
   resource_create(
     package_id = pkg_state$id,
     description = NULL,
-    upload = summary_file_paths[[yr]],
-    name = basename(summary_file_paths[[yr]]),
+    upload = state_variable_file_paths[[yr]],
+    name = basename(state_variable_file_paths[[yr]]),
     http_method = "POST"
   )
 }
