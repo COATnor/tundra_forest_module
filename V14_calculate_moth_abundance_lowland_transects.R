@@ -75,23 +75,44 @@ myfile <- rbind(dataset1, dataset2)
 ## CALCULATE STATE VARIABLE
 ## ---------------------------------- ##
 
-state_var_name <- "V14_moth_abundance_lowland_transects.txt"  # write here the file name of the sate variable (including format) 
+## get all unique years
+years <- sort(unique(myfile$t_year))
 
-## find mean v_abundance and sd of v_abundance, assign NA when the whole group have v_abundance = NA and when sd cannot be calculated
-state_var <- myfile %>% group_by(sn_region, sn_locality, t_year, v_species) %>%
-  summarise(
-    v_abundance_mean = if (all(is.na(v_abundance))) NA_real_ else mean(v_abundance, na.rm = TRUE),
-    v_abundance_sd   = if (all(is.na(v_abundance))) NA_real_ else sd(v_abundance, na.rm = TRUE), .groups="drop")
+## list to store file paths
+summary_file_paths <- list()
 
-## save the file to a temporary directory (necessary for uploading it)
-write.table(state_var, paste(tempdir(), state_var_name, sep = "/"), row.names = FALSE, sep = ";")
+## loop over each year and generate summary tables
+for (yr in years) {
+  
+  ## filter for current year
+  myfile_year <- myfile %>% filter(t_year == yr)
+  
+  ## find mean v_abundance and sd of v_abundance, assign NA when the whole group have v_abundance = NA and when sd cannot be calculated
+  state_var_year <- myfile_year %>%
+    group_by(sn_region, sn_locality, t_year, v_species) %>%
+    summarise(
+      v_abundance_mean = if (all(is.na(v_abundance))) NA_real_ else mean(v_abundance, na.rm = TRUE),
+      v_abundance_sd   = if (all(is.na(v_abundance))) NA_real_ else sd(v_abundance, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  ## define file name
+  state_var_name <- paste0("V14_moth_abundance_lowland_transects_", yr, ".txt")
+  file_path <- file.path(tempdir(), state_var_name)
+  
+  ## add table to the file path
+  write.table(state_var_year, file_path, row.names = FALSE, sep = ";")
+  
+  ## store the file path for later uploading
+  summary_file_paths[[as.character(yr)]] <- file_path
+}
 
 
 ## ------------------------------------------ ##
 ## CREATE A NEW VERSION OF THE STATE VARIABLE
 ## ------------------------------------------ ##
 
-## you can either create a new version of the state variable or add the data to a already existing state variable (then you can skip this part)
+## you can either create a new version of the state variable or add the data to an already existing state variable (then you can skip this part)
 
 ## search for your dataset
 state_name <- ""  # write here the name including the version of the state variable you want to add data to
@@ -100,7 +121,7 @@ state_version <- ""    # write here the version of the state variable
 pkg_state<-package_search(q = list(paste("name:", state_name, sep = "")), fq = list(paste("version:", state_version, sep = "")), include_private = TRUE, include_drafts = TRUE)$results[[1]] # search for the dataset and save the results
 pkg_state$name  # check the name
 
-## Modify metadata of the state variable
+## modify metadata of the state variable
 name_new <- ""  # write here the name of the new version (for example change v1 to v2)
 version_new <- ""  # write here the new version
 
@@ -157,21 +178,26 @@ package_create(name = name_new,
 ## UPLOAD THE STATE VARIABLE
 ## ---------------------------------- ##
 
-## The state variable has to be created on www.data.coat.no
+## the state variable has to be created on www.data.coat.no
 
-## Search for your dataset
+## search for your dataset
 state_name <- "v14_moth_abundance_lowland_transects_v1"  # write here the name (small first letter) including the version of the state variable you want to add data to
 state_version <- "1"    # write here the version of the state variable
 
-pkg_state<-package_search(q = list(paste("name:", state_name, sep = "")), fq = list(paste("version:", state_version, sep = "")), include_private = TRUE, include_drafts = TRUE)$results[[1]] # search for the dataset and save the results
+pkg_state <- package_search(q = list(paste("name:", state_name, sep = "")), fq = list(paste("version:", state_version, sep = "")), include_private = TRUE, include_drafts = TRUE)$results[[1]] # search for the dataset and save the results
 filenames_state <-  pkg_state$resources %>% sapply('[[','name')  # get the file names
 filenames_state   # are there any files? "list()" if not
 
-resource_create(package_id = pkg_state$id, 
-                description = NULL, 
-                upload = paste(tempdir(), state_var_name, sep = "/"),
-                name = state_var_name,
-                http_method = "POST")
+## upload state variable files for each year
+for (yr in names(summary_file_paths)) {
+  resource_create(
+    package_id = pkg_state$id,
+    description = NULL,
+    upload = summary_file_paths[[yr]],
+    name = basename(summary_file_paths[[yr]]),
+    http_method = "POST"
+  )
+}
 
 
 ## ---------------------------------- ##
