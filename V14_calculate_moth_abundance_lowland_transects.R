@@ -111,7 +111,7 @@ print(c(
 end_new <- ""  # write here the (new) end date of the dataset
 
 pkg_state$datasets  # check with which dataset the current version of the state variable is associated
-datasets_new <- "v_insect_defoliators_density_varanger_v1" # write here the name (inlcuding the version) of the dataset the should be associated with the new version of the state variable
+datasets_new <- "" # write here the name (inlcuding the version) of the dataset the should be associated with the new version of the state variable
 
 # these are the typical modifications when creating a new version of a state variable before adding data of another year
 # other modification can be made if necessary
