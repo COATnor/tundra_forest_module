@@ -41,15 +41,15 @@ ckanr_setup(url = COAT_url, key = COAT_key)
 ## list all datasets available on the COAT data portal
 package_list()
 
-## serach for your dataset
+## search for your dataset
 name <- "t_insect_defoliators_density_altitudinal_gradients_v1"  # write here the name including the version of the dataset you want to download
 version <- "1"    # write here the version of the dataset
 
-pkg<-package_search(q = list(paste("name:", name, sep = "")), fq = list(paste("version:", version, sep = "")), include_private = TRUE)$results[[1]] # search for the dataset and save the results
+pkg <- package_search(q = list(paste("name:", name, sep = "")), fq = list(paste("version:", version, sep = "")), include_private = TRUE)$results[[1]] # search for the dataset and save the results
 urls <- pkg$resources %>% sapply('[[','url')  # get the urls to the files included in the dataset
-filenames <-  pkg$resources %>% sapply('[[','name')  # get the filenames
+filenames <-  pkg$resources %>% sapply('[[','name')  # get the file names
 
-## keep only datafiles (discard readme, coordinate and aux files)
+## keep only data files (discard readme, coordinate and aux files)
 filenames
 filenames <- filenames[!grepl("coordinate|readme|aux", filenames)]
 urls
@@ -73,22 +73,44 @@ myfile <- do.call(rbind, mylist)
 ## CALCULATE STATE VARIABLE
 ## ---------------------------------- ##
 
-state_var_name <- "V28_moth_abundance_elevational_transects_troms.txt"  # write here the filename of the sate variable (including format) 
+## get all unique years
+years <- sort(unique(myfile$t_year))
 
-state_var <- myfile %>% group_by(sn_region, sn_locality, sn_group_of_sites_spatial, t_year, v_species) %>%
-  summarise(
-  v_abundance_mean = if (all(is.na(v_abundance))) NA_real_ else mean(v_abundance, na.rm = TRUE),
-  v_abundance_sd   = if (all(is.na(v_abundance))) NA_real_ else sd(v_abundance, na.rm = TRUE), .groups="drop")
+## list to store file paths
+state_variable_file_paths <- list()
 
-## save the file to a temporary directory (necessary for uploading it)
-write.table(state_var, paste(tempdir(), state_var_name, sep = "/"), row.names = FALSE, sep = ";")
+## loop over each year and generate state variable tables
+for (yr in years) {
+  
+  ## filter for current year
+  myfile_year <- myfile %>% filter(t_year == yr)
+  
+  ## find mean v_abundance and sd of v_abundance, assign NA when the whole group have v_abundance = NA and when sd cannot be calculated
+  state_var_year <- myfile_year %>%
+    group_by(sn_region, sn_locality, sn_group_of_sites_spatial, t_year, v_species) %>%
+    summarise(
+      v_abundance_mean = if (all(is.na(v_abundance))) NA_real_ else mean(v_abundance, na.rm = TRUE),
+      v_abundance_sd   = if (all(is.na(v_abundance))) NA_real_ else sd(v_abundance, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  ## define file name
+  state_var_name <- paste0("V28_moth_abundance_elevational_transects_troms_", yr, ".txt")
+  file_path <- file.path(tempdir(), state_var_name)
+  
+  ## add table to the file path
+  write.table(state_var_year, file_path, row.names = FALSE, sep = ";")
+  
+  ## store the file path for later uploading
+  state_variable_file_paths[[as.character(yr)]] <- file_path
+}
 
 
 ## ------------------------------------------ ##
 ## CREATE A NEW VERSION OF THE STATE VARIABLE
 ## ------------------------------------------ ##
 
-## you can either create a new version of the state variable or add the data to a already existing state variable (then you can skip this part)
+## you can either create a new version of the state variable or add the data to an already existing state variable (then you can skip this part)
 
 ## search for your dataset
 state_name <- "v28_moth_abundance_elevational_transects_troms_v1"  # write here the name including the version of the state variable you want to add data to
@@ -159,11 +181,16 @@ pkg_state<-package_search(q = list(paste("name:", state_name, sep = "")), fq = l
 filenames_state <-  pkg_state$resources %>% sapply('[[','name')  # get the filenames
 filenames_state   # are there any files? "list()" if not
 
-resource_create(package_id = pkg_state$id, 
-                description = NULL, 
-                upload = paste(tempdir(), state_var_name, sep = "/"),
-                name = state_var_name,
-                http_method = "POST")
+## upload state variable files for each year
+for (yr in names(state_variable_file_paths)) {
+  resource_create(
+    package_id = pkg_state$id,
+    description = NULL,
+    upload = state_variable_file_paths[[yr]],
+    name = basename(state_variable_file_paths[[yr]]),
+    http_method = "POST"
+  )
+}
 
 
 ## ---------------------------------- ##
