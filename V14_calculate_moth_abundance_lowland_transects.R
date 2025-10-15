@@ -1,6 +1,6 @@
 #### ------------------------------------------------------------------------------------------------------------ ####
 ###  CALCULATE STATE VARIABLE - V14_moth_abundance_lowland_transects
-###  Date: 30.09.2025
+###  Date: 15.10.2025
 ###  Author: Hanna Böhner and Guro Bang Synnes (editor)
 #### ------------------------------------------------------------------------------------------------------------ ####
 
@@ -87,12 +87,15 @@ for (yr in years) {
   ## filter for current year
   myfile_year <- myfile %>% filter(t_year == yr)
   
-  ## find mean v_abundance and sd of v_abundance, assign NA when the whole group have v_abundance = NA and when sd cannot be calculated
+  ## find mean v_abundance, sd of v_abundance and n, and assign NA when the whole group have v_abundance = NA and when sd cannot be calculated
   state_var_year <- myfile_year %>%
+    group_by(sn_region, sn_locality, sn_site, t_year, v_species) %>% # several rows exist per site for ope_bru
+    summarise(v_abundance = if (all(is.na(v_abundance))) NA_real_ else sum(v_abundance, na.rm = TRUE)) %>% # abundances need to be summed up for ope_bru
     group_by(sn_region, sn_locality, t_year, v_species) %>%
     summarise(
       v_abundance_mean = if (all(is.na(v_abundance))) NA_real_ else mean(v_abundance, na.rm = TRUE),
       v_abundance_sd   = if (all(is.na(v_abundance))) NA_real_ else sd(v_abundance, na.rm = TRUE),
+      n = sum(!is.na(v_abundance)),
       .groups = "drop"
     )
   
