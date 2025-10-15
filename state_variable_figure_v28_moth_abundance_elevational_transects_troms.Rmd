@@ -1,0 +1,181 @@
+---
+output: 
+  pdf_document: 
+    latex_engine: xelatex
+header-includes: 
+  - \usepackage{fontspec}
+  - \setmainfont{Arial}
+  - \usepackage{setspace} % For line spacing
+  - \onehalfspacing % Change to \onehalfspacing or \singlespacing as needed
+  - \usepackage{anyfontsize} % Allows flexible font size adjustments
+  - \fontsize{11pt}{13pt}\selectfont % Decrease font size (10pt font with 12pt line height)
+  - \geometry{paperheight=10in} % Custom page size
+geometry: margin=0.1in
+urlcolor: blue
+---
+
+
+```{r setup, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+
+## clear workspace
+rm(list = ls())
+
+## load libraries, missing packages will be installed
+if (!require("remotes")) install.packages("remotes")
+if (!require("ckanr")) remotes::install_github("ropensci/ckanr"); library("ckanr")
+if (!require("tidyverse")) install.packages("tidyverse"); library("tidyverse")
+if (!require("lubridate")) install.packages("tidyverse"); library("lubridate")
+if (!require("tidyquant")) install.packages("tidyquant"); library("tidyquant")
+if (!require("ggpubr")) install.packages("ggpubr"); library("ggpubr")
+if (!require("grid")) install.packages("grid"); library("grid")
+#if (!require("Rmisc")) install.packages("Rmisc"); library("Rmisc")
+Sys.setlocale(locale="no_NO")
+
+
+## download functions from github
+source("https://github.com/COATnor/data_management_scripts/blob/master/download_data_from_coat_data_portal.R?raw=TRUE")
+
+
+## ---------------------------------- ##
+## DOWNLOAD DATA
+## ---------------------------------- ##
+
+## set up the connection to the coat data portal
+COAT_url <- "https://data.coat.no"  # write here the url to the COAT data portal
+COAT_key <- ""  # write here your API key if you are a registered user
+ckanr_setup(url = COAT_url, key = COAT_key)
+
+## set years 
+years <- 2001:2025
+
+## set file names 
+filenames <- paste0("T_insect_defoliators_density_altitudinal_gradients_", years, ".txt")
+
+## download data
+dat <- download_coat_data(name = "t_insect_defoliators_density_altitudinal_gradients_v1",
+                          filenames = filenames)
+
+## combine all files
+dat <- do.call(rbind, dat)
+
+```
+
+```{r prepare data, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+## ---------------------------------- ##
+## PREPROCESS DATA
+## ---------------------------------- ##
+
+dat_plot <- dat %>%
+  group_by(sn_region, sn_locality, sn_group_of_sites_spatial, t_year, v_species) %>%
+  mutate(
+    v_abundance_se = ifelse(n > 1, v_abundance_sd / sqrt(n), NA_real_),
+    lower_ci = ifelse(n > 1, v_abundance_mean - 1.96 * v_abundance_se, NA_real_),
+    upper_ci = ifelse(n > 1, v_abundance_mean + 1.96 * v_abundance_se, NA_real_),
+    v_abundance_mean = ifelse(v_abundance_mean <= 1, 0.9, v_abundance_mean), # replace zero mean abundance to display small values in a simple way
+    lower_ci = ifelse(v_abundance_mean < 1, 0.9, lower_ci),
+    upper_ci = ifelse(v_abundance_mean < 1, 0.9, upper_ci), 
+    full_species = recode(v_species, agr_aur = "Gul frostmåler", epi_aut = "Fjellbjørkemåler", ope_bru = "Brun høstmåler"),
+    full_species = factor(full_species, levels = c("Fjellbjørkemåler","Brun høstmåler", "Gul frostmåler")),
+    sn_locality = recode(sn_locality, kvaloysletta = "Kvaløysletta", reinoy = "Reinøy", skogsfjord = "Skogsfjord"))
+
+
+```
+
+```{r make plot, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+
+## ---------------------------------- ##
+## MAKE PLOT
+## ---------------------------------- ##
+
+## plotting function
+plot_state_var <- function(dat = dat, add_x_axis = FALSE, add_y_axis = FALSE, loc = NULL, spatial_val = NULL) {
+  
+  ## make plot
+  p <- ggplot(dat, aes(x = t_year, y = v_abundance_mean, colour = full_species)) +
+    geom_line(aes(group = interaction(full_species, sn_locality)), alpha = 0.8, linewidth = 0.8) +
+    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, fill = full_species,
+                    group = interaction(full_species, sn_locality)), alpha = 0.3, colour = NA) +
+    scale_color_manual(values = c("Fjellbjørkemåler" = "#468f9b", "Brun høstmåler" = "#d44100", "Gul frostmåler" = "#df8600")) +
+    scale_fill_manual(values = c("Fjellbjørkemåler" = "#468f9b", "Brun høstmåler" = "#d44100", "Gul frostmåler" = "#df8600")) +
+    scale_x_continuous(limits = c(2001,2025), breaks = seq(2000, 2025, 5)) +
+    scale_y_log10(limits = c(0.9, 1000), breaks = c(1, 10, 100, 1000), oob = scales::rescale_none) +
+    labs(y = NULL) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size = 12),
+          axis.text.x = if(add_x_axis) element_text(size = 10) else element_blank(),
+          axis.text.y = if(add_y_axis) element_text(size = 10) else element_blank(),
+          axis.ticks.x = if(add_x_axis) element_line() else element_blank(),
+          axis.ticks.y = if(add_y_axis) element_line() else element_blank(),
+          axis.title.x = element_blank(),
+          plot.title = element_blank(),
+          plot.margin = margin(2,2,2,2),
+          clip = "off")
+  
+  ## add annotation with location and spatial value
+  if (!is.null(loc) && !is.null(spatial_val)) {
+    p <- p + annotate("text", x = 2001, y = 700, label = paste(loc, spatial_val, "m"), 
+                      size = 4.5, hjust = 0)
+  }
+  
+  return(p)
+}
+
+## make 12 plots with a set order
+loc_order <- c("Kvaløysletta", "Reinøy", "Skogsfjord")
+
+## row order based on decreasing altitude from top to bottom
+spatial_order <- c(240, 170, 100, 30 )  # adjust the last value (30 or 50) as needed
+
+## the different locations have different bottom values (30 vs 50)
+bottom_spatial <- list("Kvaløysletta" = 50, "Reinøy" = 30, "Skogsfjord" = 50)
+
+## list to store plots
+plot_list <- list()
+
+## create plots in nested loop
+for (row in 1:4) {
+  for (col in 1:3) {
+    loc <- loc_order[col]
+    spatial_val <- spatial_order[row]
+    
+    ## different bottom values per location
+    if (row == 4) {
+      spatial_val <- bottom_spatial[[loc]]}
+    
+    ## filter data for this specific location and spatial group
+    dat_subset <- dat_plot %>% 
+      filter(sn_locality == loc, sn_group_of_sites_spatial == spatial_val)
+    
+    ## determine if axes should be shown
+    add_y <- (col == 1)  # left column gets y-axis
+    add_x <- (row == 4)  # bottom row gets x-axis
+    
+    ## create plot
+    p <- plot_state_var(dat = dat_subset, add_x_axis = add_x, add_y_axis = add_y, 
+                        loc = loc, spatial_val = spatial_val)
+    
+    ## store plot with unique name
+    plot_name <- paste0(loc, "_", spatial_val, "m")
+    plot_list[[plot_name]] <- p
+  }
+}
+
+## combine plots
+p_combined <- ggarrange(plotlist = plot_list, ncol = 3, nrow = 4, 
+                        labels = NULL, common.legend = TRUE, legend = "bottom", 
+                        align = "hv") %>%
+  annotate_figure(left = text_grob("Antall larver", rot = 90, size = 14, vjust = 0.8),
+                  top = text_grob("Mål: Løvspisende insekter - Tilstandsvariabel: Abundanse av møll i transekter langs høydegradienter", size = 16))
+
+
+
+```
+
+```{r draw plot, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=13, fig.pos='H'}
+
+p_combined
+
+```
+
+Abundanse av møll i transekter langs høydegradienter fra lokasjonene Kvaløysletta, Reinøy og Skogsfjord i Troms. Gjennomsnittlig abundanse for lokasjonene er gitt med linje, og 95% konfidensintervall er vist når gjennsomsnittsverdien er større enn eller lik 1. Utbrudd av bjørkemålere forekommer omtrent hvert tiende år. Se [https://data.coat.no/state-variable/v28_moth_abundance_elevational_transects_troms_v1](https://data.coat.no/state-variable/v28_moth_abundance_elevational_transects_troms_v1) for mer informasjon om utvalgsdesign og datasett.
