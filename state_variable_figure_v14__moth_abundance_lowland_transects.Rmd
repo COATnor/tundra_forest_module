@@ -46,21 +46,17 @@ COAT_key <- ""  # write here your API key if you are a registered user
 ckanr_setup(url = COAT_url, key = COAT_key)
 
 ## set years 
-years1 <- 2015:2025
-years2 <- 1999:2025
+years <- 1999:2025
 
 ## set file names 
-filenames1 <- paste0("V_insect_defoliators_density_varanger_", years1, ".txt")
-filenames2 <- paste0("T_insect_defoliators_density_island_mainland_", years2, ".txt")
+filenames <- paste0("V14_moth_abundance_lowland_transects_", years, ".txt")
 
 ## download data
-dat1 <- download_coat_data(name = "v_insect_defoliators_density_varanger_v2",
-                          filenames = filenames1)
-dat2 <- download_coat_data(name = "t_insect_defoliators_density_island_mainland_v1",
-                          filenames = filenames2)
+dat <- download_coat_data(name = "v14_moth_abundance_lowland_transects_v1",
+                          filenames = filenames)
 
 ## combine all files
-dat <- do.call(rbind, c(dat1, dat2))
+dat <- do.call(rbind, dat)
 
 
 ```

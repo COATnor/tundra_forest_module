@@ -49,10 +49,10 @@ ckanr_setup(url = COAT_url, key = COAT_key)
 years <- 2001:2025
 
 ## set file names 
-filenames <- paste0("T_insect_defoliators_density_altitudinal_gradients_", years, ".txt")
+filenames <- paste0("V28_moth_abundance_elevational_transects_troms_", years, ".txt")
 
 ## download data
-dat <- download_coat_data(name = "t_insect_defoliators_density_altitudinal_gradients_v1",
+dat <- download_coat_data(name = "v28_moth_abundance_elevational_transects_troms_v1",
                           filenames = filenames)
 
 ## combine all files
