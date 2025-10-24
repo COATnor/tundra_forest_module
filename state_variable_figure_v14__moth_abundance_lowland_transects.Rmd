@@ -28,6 +28,10 @@ if (!require("lubridate")) install.packages("tidyverse"); library("lubridate")
 if (!require("tidyquant")) install.packages("tidyquant"); library("tidyquant")
 if (!require("ggpubr")) install.packages("ggpubr"); library("ggpubr")
 if (!require("grid")) install.packages("grid"); library("grid")
+if (!require("scales")) install.packages("scales"); library("scales")
+if (!require("patchwork")) install.packages("patchwork"); library("patchwork")
+
+
 #if (!require("Rmisc")) install.packages("Rmisc"); library("Rmisc")
 Sys.setlocale(locale="no_NO")
 
@@ -63,22 +67,16 @@ dat <- do.call(rbind, dat)
 
 ```{r prepare data, include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
 ## ---------------------------------- ##
-## PREPROCESS DATA
+## PREPROCESS PLOT DATA
 ## ---------------------------------- ##
 
 dat_plot <- dat %>%
   group_by(sn_region, sn_locality, t_year, v_species) %>%
   mutate(
-    v_abundance_se = ifelse(n > 1, v_abundance_sd / sqrt(n), NA_real_),
-    lower_ci = ifelse(n > 1, v_abundance_mean - 1.96 * v_abundance_se, NA_real_),
-    upper_ci = ifelse(n > 1, v_abundance_mean + 1.96 * v_abundance_se, NA_real_),
-    v_abundance_mean = ifelse(v_abundance_mean <= 1, 0.9, v_abundance_mean), # replace zero mean abundance to display small values in a simple way
-    lower_ci = ifelse(v_abundance_mean < 1, 0.9, lower_ci),
-    upper_ci = ifelse(v_abundance_mean < 1, 0.9, upper_ci), 
+    v_abundance_mean = ifelse(v_abundance_mean == 0, 0.1, v_abundance_mean),
     full_species = recode(v_species, agr_aur = "Gul frostmåler", epi_aut = "Fjellbjørkemåler", ope_bru = "Brun høstmåler"),
     full_species = factor(full_species, levels = c("Fjellbjørkemåler","Brun høstmåler", "Gul frostmåler")),
     sn_locality = recode(sn_locality, aaroy = "Årøy", aaroy_kontinent = "Årøy kontinent", daafjord = "Dåfjord", daavoy = "Dåvøy", karlsoy = "Karlsøy", reinoy = "Reinøy", rekvik = "Rekvik", skulsfjord = "Skulsfjord", tromvik = "Tromvik", tussoy = "Tussøy", tussoy_kontinent = "Tussøy kontinent", vengsoy = "Vengsøy", austertana = "Austertana", bugoyfjord = "Bugøyfjord", tana = "Tana", vestre_jakobselv = "Vestre Jakobselv"))
-
 
 ```
 
@@ -94,23 +92,21 @@ plot_state_var <- function(dat = dat, add_x_axis = FALSE, add_y_axis = FALSE) {
   ## make plot
   p <- ggplot(dat, aes(x = t_year, y = v_abundance_mean, colour = full_species)) +
     geom_line(aes(group = interaction(full_species, sn_locality)), alpha = 0.8, linewidth = 0.8) +
-    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, fill = full_species,
-                    group = interaction(full_species, sn_locality)), alpha = 0.3, colour = NA) +
     scale_color_manual(values = c("Fjellbjørkemåler" = "#468f9b", "Brun høstmåler" = "#d44100", "Gul frostmåler" = "#df8600")) +
     scale_fill_manual(values = c("Fjellbjørkemåler" = "#468f9b", "Brun høstmåler" = "#d44100", "Gul frostmåler" = "#df8600")) +
     scale_x_continuous(limits = c(1999,2025), breaks = seq(2000, 2025, 5)) +
-    scale_y_log10(limits = c(0.9, 1000), breaks = c(1, 10, 100, 1000), oob = scales::rescale_none) +
+    scale_y_log10(limits = c(0.1, 1000), breaks = c(0.1, 1, 10, 100, 1000), labels = c("0", "1", "10", "100", "1000"),
+, oob = scales::rescale_none) +
     labs(y = NULL) +
     theme_bw() +
     theme(legend.title = element_blank(),
-          legend.text = element_text(size = 12),
+          legend.text = element_text(size = 14),
           axis.text.x = if(add_x_axis) element_text(size = 10) else element_blank(),
           axis.text.y = if(add_y_axis) element_text(size = 10) else element_blank(),
           axis.ticks.x = if(add_x_axis) element_line() else element_blank(),
           axis.ticks.y = if(add_y_axis) element_line() else element_blank(),
           axis.title.x = element_blank(),
           plot.title = element_blank(),
-          plot.margin = margin(2,2,2,2),
           clip = "off") +
     annotate("text", x = 1999.5, y = 700, label = loc, size = 4.5, hjust = 0)
   
@@ -125,6 +121,7 @@ p_order <- c("Dåfjord", "Dåvøy", "Karlsøy", "Reinøy", "Rekvik", "Skulsfjord
 
 ## list with individual plots
 plot_list <- list()
+
 for (i in seq_len(length(p_order))) {
   loc <- p_order[i]
   dat_subset <- dat_plot %>% filter(sn_locality == loc)
@@ -142,12 +139,19 @@ for (i in seq_len(length(p_order))) {
   plot_list[[loc]] <- p
 }
 
-## combine the plots
-p_combined <- ggarrange(plotlist = plot_list, ncol = 4, nrow = 4, labels = NULL, common.legend = TRUE, legend = "bottom", align = "hv") %>%
-  annotate_figure(left = text_grob("Antall larver", rot = 90, size = 14, vjust = 0.8),
-    top = text_grob("Mål: Løvspisende insekter - Tilstandsvariabel: Abundanse av møll i lavlandstransekter", size = 16)
-  )
+p_wrapped <- wrap_plots(plot_list, ncol = 4, nrow = 4) + 
+  plot_layout(guides = 'collect') & 
+  theme(legend.position = "bottom", legend.direction = "horizontal", legend.title = element_blank(),
+    legend.text = element_text(size = 12), plot.margin = margin(7, 7, 7, 7))
 
+y_label <- grid::textGrob(
+  "Antall larver", rot = 90, gp = gpar(fontsize = 14))
+
+p_combined <- (wrap_elements(full = y_label) + p_wrapped) + plot_layout(widths = c(0.03, 1)) +
+  plot_annotation(
+    title = "Mål: Løvspisende insekter - Tilstandsvariabel: Tetthet av møll i lavlandstransekter",
+    theme = theme(
+      plot.title = element_text(size = 16, hjust = 0.5)))
 
 ```
 
@@ -157,4 +161,4 @@ p_combined
 
 ```
 
-Abundanse av møll i lavlandstransekter i Troms og Varanger. Gjennomsnittlig abundanse for lokasjonene er gitt med linje, og 95% konfidensintervall er vist når gjennsomsnittsverdien er større enn eller lik 1. Utbrudd av bjørkemålere forekommer omtrent hvert tiende år. De lengste tidsseriene i figuren er fra Troms, der overvåking av bjørkemålere har pågått siden 1999. Se [https://data.coat.no/state-variable/v14_moth_abundance_lowland_transects_v1](https://data.coat.no/state-variable/v14_moth_abundance_lowland_transects_v1) for mer informasjon om utvalgsdesign og datasett.
+Tetthet av målerlarver i lavlandstransekter i Troms (øvre tre rader) og Øst-Finnmark (nederste rad). Linjene viser gjennomsnittlig tetthet (antall larver per stasjon) med 95% konfidensintervall. Utbrudd av bjørkemålere forekommer omtrent hvert tiende år. I Troms har overvåking av bjørkemålere pågått siden 1999. Overvåkingen i Øst-Finnmark ble påbegynt i 2015. Se [https://data.coat.no/state-variable/v14_moth_abundance_lowland_transects_v1](https://data.coat.no/state-variable/v14_moth_abundance_lowland_transects_v1) for mer informasjon om studiedesign og datasett.
