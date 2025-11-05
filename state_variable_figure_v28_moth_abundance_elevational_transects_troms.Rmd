@@ -175,5 +175,4 @@ p_combined <- (wrap_elements(full = y_label) + p_wrapped) + plot_layout(widths =
 p_combined
 
 ```
-
 Tetthet av målerlarver i transekter langs høydegradienter i Troms. Linjene viser gjennomsnittlig tetthet (antall larver per stasjon). Utbrudd av bjørkemålere forekommer omtrent hvert tiende år. I Troms har overvåking av bjørkemålere pågått siden 1999. Se [https://data.coat.no/state-variable/v28_moth_abundance_elevational_transects_troms_v1](https://data.coat.no/state-variable/v28_moth_abundance_elevational_transects_troms_v1) for mer informasjon om studiedesign og datasett.
