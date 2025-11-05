@@ -69,7 +69,7 @@ dat <- do.call(rbind, dat)
 dat_plot <- dat %>%
   group_by(sn_region, sn_locality, sn_group_of_sites_spatial, t_year, v_species) %>%
 mutate(
-    v_abundance_mean = ifelse(v_abundance_mean == 0, 0.1, v_abundance_mean),
+    v_abundance_mean = ifelse(v_abundance_mean <= 0.1, 0.1, v_abundance_mean),
     full_species = recode(v_species, agr_aur = "Gul frostmåler", epi_aut = "Fjellbjørkemåler", ope_bru = "Brun høstmåler"),
     full_species = factor(full_species, levels = c("Fjellbjørkemåler","Brun høstmåler", "Gul frostmåler")),
     sn_locality = recode(sn_locality, kvaloysletta = "Kvaløysletta", reinoy = "Reinøy", skogsfjord = "Skogsfjord"))
@@ -91,7 +91,7 @@ plot_state_var <- function(dat = dat, add_x_axis = FALSE, add_y_axis = FALSE, lo
     scale_color_manual(values = c("Fjellbjørkemåler" = "#468f9b", "Brun høstmåler" = "#d44100", "Gul frostmåler" = "#df8600")) +
     scale_fill_manual(values = c("Fjellbjørkemåler" = "#468f9b", "Brun høstmåler" = "#d44100", "Gul frostmåler" = "#df8600")) +
     scale_x_continuous(limits = c(2001,2025), breaks = seq(2000, 2025, 5)) +
-    scale_y_log10(limits = c(0.1, 1000), breaks = c(0.1, 1, 10, 100, 1000), labels = c("0", "1", "10", "100", "1000"), oob = scales::rescale_none) +
+    scale_y_log10(limits = c(0.1, 1000), breaks = c(0.1, 1, 10, 100, 1000), labels = c("0.1", "1", "10", "100", "1000"), oob = scales::rescale_none) +
     labs(y = NULL) +
     theme_bw() +
     theme(legend.title = element_blank(),
@@ -164,7 +164,7 @@ y_label <- grid::textGrob(
 
 p_combined <- (wrap_elements(full = y_label) + p_wrapped) + plot_layout(widths = c(0.03, 1)) +
   plot_annotation(
-    title = "Mål: Løvspisende insekter - Tilstandsvariabel: Tetthet av møll i transekter langs høydegradienter",
+    title = "Mål: Løvspisende insekter - Tilstandsvariabel: Tetthet av målere i transekter langs høydegradienter i Troms",
     theme = theme(
       plot.title = element_text(size = 16, hjust = 0.5)))
 
